@@ -2,6 +2,11 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   height: 100%;
+  background: url('./assets/headerBg.svg') var(--accent-primary) no-repeat center;
+  background-size: cover;
+  background-image: url('./assets/headerBgDark.svg');
+  padding: 32px 24px;
+  gap: 24px;
 
   @media screen and (max-width: 960px) {
     display: flex;
@@ -10,20 +15,53 @@
 }
 
 .header {
-  background: url('./assets/headerBg.svg') var(--accent-primary) no-repeat center;
-  background-size: cover;
-  color: #1b1b1b;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: center;
 
   h1 {
-    font: 700 40px var(--font-family-syne);
+    color: var(--pure-black);
+    text-align: right;
+    font: 700 67px var(--font-family-syne);
+    line-height: 110%;
+    text-transform: uppercase;
+
+    .nftTokenText {
+      display: inline-block;
+      position: relative !important;
+      top: -10px;
+      left: 0;
+      background: var(--pure-black);
+      padding: 12px 24px;
+      border-radius: 16px 16px 16px 0px;
+      color: var(--accent-primary);
+      font: 700 32px var(--font-family-syne);
+      font-family: Syne;
+      line-height: 110%;
+      text-transform: uppercase;
+      transform: rotate(-10deg);
+      margin-right: 16px;
+    }
+
+    .nftTokenText::after {
+      content: '';
+      position: absolute;
+      bottom: -32px;
+      left: -2.5px;
+      width: 59px;
+      height: 37.498px;
+      border-left: 0;
+      transform: rotate(8deg);
+      background-image: url('./assets/Vector.svg');
+    }
   }
+
   h2 {
-    font: 500 25px var(--font-family-chakra);
-    margin-bottom: 20px;
+    color: var(--pure-black);
+    text-align: right;
+    font: 500 25px var(--font-family-syne);
+    line-height: normal;
+    padding: 12px 0 24px 0;
   }
 
   @media screen and (max-width: 960px) {
@@ -52,15 +90,12 @@
     }
   }
 }
-.headerDark {
-  background-image: url('./assets/headerBgDark.svg');
-}
+
 .headerContent {
   display: flex;
   flex-direction: column;
   justify-content: center;
   max-width: 624px;
-  padding: 24px;
   overflow: visible;
 
   @media screen and (max-width: 960px) {
@@ -79,7 +114,7 @@
   display: grid;
   width: 100%;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 12px;
   color: var(--content-primary);
 
   @media screen and (max-width: 960px) {
@@ -110,11 +145,13 @@
   align-items: center;
   background: var(--bg-primary);
   padding: 16px;
+  border-radius: 24px;
+  z-index: 2;
 
   svg {
     height: 40px;
     path {
-      fill: var(--content-primary);
+      fill: var(--content-secondary);
     }
   }
 
@@ -142,11 +179,8 @@
 
 .content {
   max-width: 624px;
-  padding: 24px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  row-gap: 72px;
 
   @media screen and (max-width: 960px) {
     margin: 0;
@@ -167,25 +201,60 @@
 .listCol {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  background: var(--bg-primary);
+  padding: 24px;
+  z-index: 2;
+
+  &:first-child {
+    border-radius: 24px 24px 0px 0px;
+    border-bottom: 0.5px solid var(--bg-border);
+  }
+
+  &:last-child {
+    border-radius: 0px 0px 24px 24px;
+  }
+
+  h3 {
+    color: var(--content-secondary);
+    font: 700 22px Syne;
+    line-height: normal;
+    text-transform: uppercase;
+    height: 40px;
+
+    &.borrowTitle::before,
+    &.lendTitle::before {
+      position: relative;
+      top: 8px;
+      margin-right: 8px;
+    }
+
+    &.borrowTitle::before {
+      content: url('./assets/BorrowFilled.svg');
+    }
+    &.lendTitle::before {
+      content: url('./assets/LendFilled.svg');
+    }
+  }
 
   ul {
-    font: var(--body-text-sm);
+    font: var(--body-text-md);
     display: flex;
     flex-direction: column;
-    row-gap: 4px;
+    row-gap: 8px;
   }
 }
 
 .button {
   max-width: 412px;
   text-decoration: none;
-  margin-bottom: 18px;
   display: block;
 
   button {
     width: 100%;
-    font: 600 22px var(--font-family-chakra);
-    height: 48px !important;
+    font: 600 16px var(--font-family-chakra);
+    line-height: normal;
+    height: 40px !important;
   }
 
   @media screen and (max-width: 960px) {
@@ -199,4 +268,13 @@
       height: 40px !important;
     }
   }
+}
+
+.indexImg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  grid-column: span 2;
+  z-index: 1;
 }
