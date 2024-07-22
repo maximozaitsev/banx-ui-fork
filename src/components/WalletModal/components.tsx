@@ -2,12 +2,12 @@ import { FC } from 'react'
 
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import classNames from 'classnames'
-import { sumBy, uniqueId } from 'lodash'
+import { LendingTokenType } from 'fbonds-core/lib/fbond-protocol/types'
+import { uniqueId } from 'lodash'
 import { TxnExecutor } from 'solana-transactions-executor'
 
-import { Offer } from '@banx/api/nft'
-import { useDiscordUser } from '@banx/hooks'
-import { ChangeWallet, Copy, SignOut } from '@banx/icons'
+import { useBanxSolBalance, useClusterStats, useDiscordUser, useSolanaBalance } from '@banx/hooks'
+import { BanxSOL, ChangeWallet, Copy, SignOut } from '@banx/icons'
 import { useUserOffers } from '@banx/pages/nftLending/OffersPage/components/OffersTabContent/hooks'
 import { useIsLedger } from '@banx/store/common'
 import { useTokenType } from '@banx/store/nft'
@@ -16,7 +16,11 @@ import {
   createExecutorWalletAndConnection,
   defaultTxnErrorHandler,
 } from '@banx/transactions'
-import { createClaimLenderVaultTxnData } from '@banx/transactions/nftLending'
+import {
+  CreateClaimLenderVaultTxnDataParams,
+  createClaimLenderVaultTxnData,
+  parseClaimLenderVaultSimulatedAccounts,
+} from '@banx/transactions/nftLending'
 import {
   copyToClipboard,
   destroySnackbar,
@@ -24,15 +28,19 @@ import {
   enqueueSnackbar,
   enqueueTransactionsSent,
   enqueueWaitingConfirmation,
+  formatValueByTokenType,
+  isBanxSolTokenType,
   shortenAddress,
 } from '@banx/utils'
 
 import { Button } from '../Buttons'
 import Checkbox from '../Checkbox'
+import { EpochProgressBar } from '../EpochProgressBar'
+import { StatInfo } from '../StatInfo'
 import { DisplayValue } from '../TableComponents'
-import Tooltip from '../Tooltip'
 import UserAvatar from '../UserAvatar'
 import { iconComponents } from './constants'
+import { getLenderVaultInfo } from './helpers'
 
 import styles from './WalletModal.module.less'
 
@@ -41,7 +49,11 @@ const UserGeneralInfo = () => {
   const publicKeyString = publicKey?.toBase58() || ''
   const { data: discordUserData } = useDiscordUser()
 
+  const solWalletBalance = useSolanaBalance({ isLive: true })
+  const banxSolWalletBalance = useBanxSolBalance({ isLive: true })
+
   const { isLedger, setIsLedger } = useIsLedger()
+  const { tokenType } = useTokenType()
 
   return (
     <div className={styles.userGeneralInfoContainer}>
@@ -53,6 +65,48 @@ const UserGeneralInfo = () => {
         </div>
         <Checkbox onChange={() => setIsLedger(!isLedger)} label="I use ledger" checked={isLedger} />
       </div>
+      {isBanxSolTokenType(tokenType) && (
+        <BalanceContent
+          solWalletBalance={solWalletBalance}
+          banxSolWalletBalance={banxSolWalletBalance}
+          tokenType={tokenType}
+        />
+      )}
+    </div>
+  )
+}
+
+interface BalanceContentProps {
+  solWalletBalance: number
+  banxSolWalletBalance: number
+  tokenType: LendingTokenType
+}
+const BalanceContent: FC<BalanceContentProps> = ({
+  solWalletBalance,
+  banxSolWalletBalance,
+  tokenType,
+}) => {
+  const formattedBanxSolWalletBalance = banxSolWalletBalance
+    ? formatValueByTokenType(banxSolWalletBalance, tokenType)
+    : 0
+
+  return (
+    <div className={styles.balanceContainer}>
+      <div className={styles.balanceContent}>
+        <StatInfo
+          value={formattedBanxSolWalletBalance}
+          classNamesProps={{ value: styles.balanceValue }}
+          icon={BanxSOL}
+          flexType="row"
+        />
+        <div className={styles.verticalLine} />
+        <StatInfo
+          value={<DisplayValue value={solWalletBalance} />}
+          classNamesProps={{ value: styles.balanceValue }}
+          flexType="row"
+        />
+      </div>
+      <span className={styles.balanceLabel}>Wallet balance</span>
     </div>
   )
 }
@@ -99,12 +153,19 @@ const LenderVaultContent = () => {
   const { tokenType } = useTokenType()
 
   const { offers, updateOrAddOffer } = useUserOffers()
+  const { data: clusterStats } = useClusterStats()
+  const { isLedger } = useIsLedger()
 
-  const totalAccruedInterest = sumBy(offers, ({ offer }) => offer.concentrationIndex)
-  const totalRepaymets = sumBy(offers, ({ offer }) => offer.bidCap)
-  // const totalLstYeild = sumBy(offers, ({ offer }) => offer.bidCap)
-
-  const totalClaimableValue = totalAccruedInterest + totalRepaymets
+  const {
+    totalAccruedInterest,
+    totalRepaymets,
+    totalLstYield,
+    totalClosedOffersValue,
+    totalLiquidityValue,
+    totalClaimableValue,
+    totalFundsInCurrentEpoch,
+    totalFundsInNextEpoch,
+  } = getLenderVaultInfo(offers, clusterStats)
 
   const claimVault = async () => {
     if (!offers.length) return
@@ -114,19 +175,23 @@ const LenderVaultContent = () => {
     try {
       const walletAndConnection = createExecutorWalletAndConnection({ wallet, connection })
 
-      const filteredOffets = offers.filter(({ offer }) => offer.concentrationIndex || offer.bidCap)
-
       const txnsData = await Promise.all(
-        filteredOffets.map(({ offer }) =>
-          createClaimLenderVaultTxnData({
-            offer,
+        offers.map(({ offer }) =>
+          createClaimLenderVaultTxnData(
+            {
+              offer,
+              tokenType,
+              clusterStats,
+            },
             walletAndConnection,
-            tokenType,
-          }),
+          ),
         ),
       )
 
-      await new TxnExecutor<Offer>(walletAndConnection, TXN_EXECUTOR_DEFAULT_OPTIONS)
+      await new TxnExecutor<CreateClaimLenderVaultTxnDataParams>(walletAndConnection, {
+        ...TXN_EXECUTOR_DEFAULT_OPTIONS,
+        chunkSize: isLedger ? 5 : 40,
+      })
         .addTxnsData(txnsData)
         .on('sentAll', () => {
           enqueueTransactionsSent()
@@ -139,7 +204,11 @@ const LenderVaultContent = () => {
 
           if (confirmed.length) {
             enqueueSnackbar({ message: 'Successfully claimed', type: 'success' })
-            confirmed.forEach(({ result }) => result && updateOrAddOffer([result]))
+            confirmed.forEach(({ accountInfoByPubkey }) => {
+              if (!accountInfoByPubkey) return
+              const offer = parseClaimLenderVaultSimulatedAccounts(accountInfoByPubkey)
+              updateOrAddOffer([offer])
+            })
           }
 
           if (failed.length) {
@@ -162,30 +231,75 @@ const LenderVaultContent = () => {
     }
   }
 
-  const tooltipContent = () => (
+  const tooltipContent = (
     <div className={styles.tooltipContent}>
+      <TooltipRow label="Repayments" value={totalRepaymets} />
+      <TooltipRow label="Closed offers" value={totalClosedOffersValue} />
       <TooltipRow label="Accrued interest" value={totalAccruedInterest} />
-      <TooltipRow label="Repaymets" value={totalRepaymets} />
-      {/* <TooltipRow label="Lst Yield" value={totalLstYeild} /> */}
     </div>
   )
 
+  const formattedTotalFundsInCurrentEpoch = totalFundsInCurrentEpoch
+    ? formatValueByTokenType(totalFundsInCurrentEpoch, tokenType)
+    : 0
+
+  const formattedTotalFundsInNextEpoch = totalFundsInNextEpoch
+    ? formatValueByTokenType(totalFundsInNextEpoch, tokenType)
+    : 0
+
+  const formattedLstYieldValue = totalLstYield
+    ? formatValueByTokenType(totalLstYield, tokenType)
+    : 0
+
   return (
     <div className={styles.lenderVaultContainer}>
-      <div className={styles.lenderVaultStat}>
-        <p className={styles.lenderVaultStatValue}>
-          <DisplayValue value={totalClaimableValue} />
-        </p>
-        <div className={styles.lenderVaultStatLabel}>
-          <span>Lender</span>
-          <span>
-            Vault <Tooltip title={tooltipContent}></Tooltip>
-          </span>
+      {isBanxSolTokenType(tokenType) && (
+        <div className={styles.epochContainer}>
+          <EpochProgressBar />
+          <div className={styles.epochStats}>
+            <StatInfo
+              label="Yield for this epoch"
+              tooltipText="Liquid staking profit, awarded as 6% APR, based on the $SOL you hold in Banx for the entire epoch (excluding taken loans)"
+              value={formattedTotalFundsInCurrentEpoch}
+              icon={BanxSOL}
+              flexType="row"
+            />
+            <StatInfo
+              label="Yield for next epoch"
+              tooltipText="Projected liquid staking profit, awarded as 6% APR, based on the $SOL you hold in Banx throughout the next epoch (excluding taken loans)"
+              value={formattedTotalFundsInNextEpoch}
+              icon={BanxSOL}
+              flexType="row"
+            />
+          </div>
         </div>
+      )}
+
+      <div
+        className={classNames(styles.lenderValtStatsContainer, {
+          [styles.hiddenBorder]: !isBanxSolTokenType(tokenType),
+        })}
+      >
+        <div className={styles.lenderVaultStats}>
+          <StatInfo
+            label="Liquidity"
+            tooltipText={tooltipContent}
+            value={<DisplayValue value={totalLiquidityValue} />}
+          />
+          {isBanxSolTokenType(tokenType) && (
+            <StatInfo
+              label="LST yield"
+              tooltipText="Yield generated from the BanxSOL integrated Liquid Staking Token, based on the $SOL you hold in Banx throughout a whole epoch, excluding $SOL in taken loans"
+              value={formattedLstYieldValue}
+              classNamesProps={{ value: styles.claimableValue }}
+              icon={BanxSOL}
+            />
+          )}
+        </div>
+        <Button onClick={claimVault} disabled={!totalClaimableValue} size="small">
+          Claim
+        </Button>
       </div>
-      <Button onClick={claimVault} disabled={!totalClaimableValue} size="small">
-        Claim
-      </Button>
     </div>
   )
 }
