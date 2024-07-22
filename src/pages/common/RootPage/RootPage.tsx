@@ -81,7 +81,7 @@ const Content = () => (
         <Button>Borrow</Button>
       </NavLink>
       <ul>
-        <li>Borrow SOL against your NFTs</li>
+        <li>Borrow SOL or USDC against your NFTs or tokens</li>
         <li>Loans have no fixed duration: repay when you want, in full or in part</li>
         <li>Enjoy pro-rata interest and a 72H guaranteed extension on repayment calls</li>
       </ul>
@@ -92,7 +92,7 @@ const Content = () => (
         <Button>Lend</Button>
       </NavLink>
       <ul>
-        <li>Earn yield on your SOL by providing loans against NFTs</li>
+        <li>Earn yield on your SOL or USDC by providing loans against NFTs or tokens</li>
         <li>Set offers or instantly refinance active loans within your personal risk tolerance</li>
         <li>Terminate or sell your loans to exit anytime you want</li>
       </ul>
